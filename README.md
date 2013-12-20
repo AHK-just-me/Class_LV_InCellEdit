@@ -1,4 +1,4 @@
-# Class LV_InCellEdit #
+# Class_LV_InCellEdit #
 
 AHK class providing in-cell editing for ListView controls in AHK GUIs.
 
