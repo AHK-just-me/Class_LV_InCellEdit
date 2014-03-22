@@ -1,25 +1,25 @@
-﻿; ======================================================================================================================
+; ======================================================================================================================
 ; Namespace:      LV_InCellEdit
-; AHK version:    AHK 1.1.05.+ (required)
-; Function:       Helper object and functions for in-cell ListView editing
-; Language:       English
-; Tested on:      Win XPSP3 (ANSI), Win VistaSP2 (U32), Win 7 (U64)
-; Version:        1.1.01.00/2012-03-18/just me
-;                 1.1.02.00/2012-05-01/just me - Added method SetColumns
+; Function:       Auxiliary object and functions for in-cell ListView editing
+; Tested with:    AHK 1.1.14.03
+; Tested on:      Win 7 Pro / Win 8.1 Pro (x64)
+; Change History: 1.1.04.00/2014-03-22/just me - Added method EditCell
 ;                 1.1.03.00/2012-05-05/just me - Added back option BlankSubItem for method Attach
+;                 1.1.02.00/2012-05-01/just me - Added method SetColumns
+;                 1.1.01.00/2012-03-18/just me
 ; ======================================================================================================================
 ; CLASS LV_InCellEdit
 ;
 ; Unlike all other in-cell editing scripts, this class is using the ListViews built-in edit control. Its advantage
-; is that you don't have to care about the font and the GUI, and most of the job can be done by handling common 
+; is that you don't have to care about the font and the GUI, and most of the job can be done by handling common
 ; ListView notifications.
 ; On the other hand the ListViews must be subclassed while editing. Furthermore I've still found no way to prevent them
 ; from blanking out the first subitem of the row while editing another subitem. The only known workaround is to add a
 ; hidden first column.
 ;
-; The class provides four public methods to register / unregister in-cell editing for ListView controls, to restrict
-; editing to certain columns, and to register / unregister the provided message handler function for WM_NOTIFY messages
-; (see below).
+; The class provides public methods to register / unregister in-cell editing for ListView controls, to restrict
+; editing to certain columns, to directly start editing of a specified cell, and to register / unregister the
+; provided message handler function for WM_NOTIFY messages (see below).
 ;
 ; If a ListView is registered for in-cell editing a doubleclick on any cell will show an Edit control within this cell
 ; allowing to edit the current content. The default behavior for editing the first column by two subsequent single
@@ -364,7 +364,7 @@ Class LV_InCellEdit {
       Return False
    }
    ; ===================================================================================================================
-   ; SubClassProc for ListViews 
+   ; SubClassProc for ListViews
    ; ===================================================================================================================
    SubClassProc(H, M, W, L, I, D) {
       Static EC_LEFTMARGIN := 0x01
@@ -427,7 +427,7 @@ Class LV_InCellEdit {
    ;                                      Default: True
    ; Return Value:         Always True
    ; ===================================================================================================================
-   OnMessage(DoIt = True) {
+   OnMessage(DoIt := True) {
       Static MessageHandler := "LV_InCellEdit_WM_NOTIFY"
       Static WM_NOTIFY := 0x4E
       If (DoIt) {
@@ -449,7 +449,7 @@ Class LV_InCellEdit {
    ;                                         Default: False
    ; Return values:        Always True
    ; ===================================================================================================================
-   Attach(HWND, HiddenCol1 = False, BlankSubItem = False) {
+   Attach(HWND, HiddenCol1 := False, BlankSubItem := False) {
       ; Store HWND and options
       This.Attached[HWND] := {Skip0: HiddenCol1, Blank: BlankSubItem}
       Return True
@@ -465,6 +465,43 @@ Class LV_InCellEdit {
       Return True
    }
    ; ===================================================================================================================
+   ; METHOD EditCell       Edit the specified cell, if possible.
+   ; Parameters:           HWND           -  ListView's HWND                                                (Integer)
+   ;                       Row            -  1-based row number                                             (Integer)
+   ;                       Col            -  1-based column number                                          (Integer)
+   ;                                         Default: 0 - edit the first editable column
+   ; Return values:        On success: True
+   ;                       On failure: False
+   ; ===================================================================================================================
+   EditCell(HWND, Row, Col := 0) {
+      If !This.Attached.HasKey(HWND)
+         Return False
+      ControlGet, Rows, List, Count, , % "ahk_id " . HWND
+      This.Rows := Rows - 1
+      ControlGet, Cols, List, Count Col, , % "ahk_id " . HWND
+      This.Cols := Cols - 1
+      If (Col = 0) {
+         If This.Attached[HWND].HasKey("Columns")
+            Col := This.Attached[HWND].Columns.MinIndex() + 1
+         ELse If This.Attached[HWND].Skip0
+            Col := 2
+         Else
+            Col := 1
+      }
+      If (Row < 1) || (Row > Rows) || (Col < 1) || (Col > Cols)
+         Return False
+      If (Column = 1) && This.Attached[HWND].Skip0
+         Col := 2
+      If This.Attached[HWND].HasKey("Columns")
+         If !This.Attached[HWND].Columns[Col - 1]
+            Return False
+      VarSetCapacity(LPARAM, 1024, 0)
+      NumPut(Row - 1, LPARAM, This.NMHDRSize + 0, "Int")
+      NumPut(Col - 1, LPARAM, This.NMHDRSize + 4, "Int")
+      This.On_NM_DBLCLICK(HWND, &LPARAM)
+      Return True
+   }
+   ; ===================================================================================================================
    ; METHOD SetColumns     Sets the columns you want to edit
    ; Parameters:           HWND           -  ListView's HWND                                                (Integer)
    ;                       ColArr         -  Array of 1-based column indices                                (Array)
@@ -473,7 +510,7 @@ Class LV_InCellEdit {
    ; Return values:        On success: True
    ;                       On failure: False
    ; ===================================================================================================================
-   SetColumns(HWND, ColArr = "") {
+   SetColumns(HWND, ColArr := "") {
       If !This.Attached.HasKey(HWND)
          Return False
       If !IsObject(ColArr) {

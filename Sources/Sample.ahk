@@ -1,6 +1,3 @@
-; ======================================================================================================================
-; AHK 1.1.05+
-; ======================================================================================================================
 #NoEnv
 #Include Class_LV_InCellEdit.ahk
 SetBatchLines, -1
@@ -29,7 +26,7 @@ Loop, Parse, LV, `n
 Loop, 3
    LV_ModifyCol(A_Index, "200")
 Gui, Add, CheckBox, h20 vHL gHiddenCol1ListView Checked
-   , % " In-cell editing for ListView with options HiddenCol1 & BlankSubItem"
+   , % " In-cell editing for ListView with options HiddenCol1 && BlankSubItem"
 Gui, Add, ListView, xm y+10 w%LVW% -Readonly Grid r4 gMyListView hwndHLV2 AltSubmit vLV2 +LV0x010000
    , Column 0|Column 1|Column 2|Column 3|Column 4|Column 5
 Loop, Parse, LV, `n
@@ -85,6 +82,14 @@ MyListView:
          ToolTip, % "Changes in " . A_GuiControl . "`r`n`r`n" . Msg
          SetTimer, KillToolTip, 2000
          LV_InCellEdit.Changed.Remove(H, "")
+      }
+   }
+   Else If (A_GuiEvent == "K") && (Chr(A_EventInfo) = "e") {
+      GuiControlGet, H, HWND, %A_GuiControl%
+      If LV_InCellEdit.Attached.HasKey(H) {
+         Gui, ListView, %A_GuiControl%
+         If (Row := LV_GetNext(0, "Focused"))
+            LV_InCellEdit.EditCell(H, Row)
       }
    }
 Return
