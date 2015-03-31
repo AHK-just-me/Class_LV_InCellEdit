@@ -16,7 +16,7 @@ without changing the value of the current cell. All other hotkeys will store the
 cell and continue editing for the next (Tab), previous (Shift+Tab), upper (Up), or lower (Down) cell. You cannot use
 the keys for other purposes while editing.
 
-All changes are stored in `MyInstance.Changed`. You may track the changes by triggering (A_GuiEvent == "F") in the
+All changes are stored in `MyInstance.Changed`. You may track the changes by triggering `(A_GuiEvent == "F")` in the
 ListView's gLabel and checking `MyInstance["Changed"]` as shown in the sample scipt. If "True", `MyInstance.Changed`
 contains an array of objects with keys "Row" (row number), "Col" (column number), and "Txt" (new content).
 'Changed' is one of the two keys intended to be accessed directly from outside the class.
