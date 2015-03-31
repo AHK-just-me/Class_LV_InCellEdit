@@ -2,14 +2,31 @@
 
 AHK class providing in-cell editing for ListView controls in AHK GUIs.
 
-The class provides four public methods to register (`Attach()`) and unregister (`Detach()`) in-cell editing for ListView controls, to restrict editing to certain columns (`SetColumns()`), and to register / unregister (`OnMessage()`) the provided message handler function for WM_NOTIFY messages (see below).
+The class provides methods to restrict editing to certain columns, to directly start editing of a specified cell,
+and to deactivate/activate the built-in message handler for `WM_NOTIFY` messages (see below).
 
-If a ListView is registered for in-cell editing a doubleclick on any cell will show an Edit control within this cell allowing to edit the current content. The default behavior for editing the first column by two subsequent single clicks is disabled. You have to press `Esc` to cancel editing, otherwise the changed content of the Edit will be stored. ListViews must have the `-ReadOnly` option to be editable.
+The message handler for `WM_NOTIFY` messages will be activated for the specified ListView whenever a new instance is
+created. As long as the message handler is activated a double-click on any cell will show an Edit control within this
+cell allowing to edit the current content. The default behavior for editing the first column by two subsequent single
+clicks is disabled. You have to press "Esc" to cancel editing, otherwise the content of the Edit will be stored in
+the current cell. ListViews must have the `-ReadOnly` option to be editable.
 
-While editing, `Esc`, `Tab`, `Shift+Tab`, `Down`, and `Up` keys are registered as hotkeys. `Esc` will cancel editing without changing the value of the current cell. All other hotkeys will store the current content of the edit in the current cell and continue editing for the next (`Tab`), previous (`Shift+Tab`), upper (`Up`), or lower (`Down`) cell. You must not use this hotkeys for other purposes while editing.
+While editing, "Esc", "Tab", "Shift+Tab", "Down", and "Up" keys are registered as hotkeys. "Esc" will cancel editing
+without changing the value of the current cell. All other hotkeys will store the content of the edit in the current
+cell and continue editing for the next (Tab), previous (Shift+Tab), upper (Up), or lower (Down) cell. You cannot use
+the keys for other purposes while editing.
 
-All changes are stored in `LV_InCellEdit.Changed` per HWND. You may track the changes by triggering (`A_GuiEvent == "F"`) in the ListViews gLabels and checking `LV_InCellEdit.Changed.HasKey(ListViewHWND)` as shown in the sample scipt. If `True`, `LV_InCellEdit.Changed[ListViewHWND]` contains an array of objects with keys "Row" (1-based row number), `Col` (1-based column number), and `Txt` (new content). `LV_InCellEdit.Changed` is the one and only key intended to be accessed directly from outside the class.
+All changes are stored in `MyInstance.Changed`. You may track the changes by triggering (A_GuiEvent == "F") in the
+ListView's gLabel and checking `MyInstance["Changed"]` as shown in the sample scipt. If "True", `MyInstance.Changed`
+contains an array of objects with keys "Row" (row number), "Col" (column number), and "Txt" (new content).
+'Changed' is one of the two keys intended to be accessed directly from outside the class.
 
-If you want to use the provided message handler you must call `LV_InCellEdit.OnMessage()` once before editing any controls. Otherwise you should integrate the code within `LV_InCellEdit_WM_NOTIFY` into your own notification handler. Without the notification handling editing won't work.
+If you want to temporarily disable in-cell editing call `MyInstance.OnMessage(False)`. This must be done also before
+you try to destroy the instance. To enable it again, call `MyInstance.OnMessage()``.
+
+To avoid the loss of Gui events and messages the message handler might need to be `Critical`. This can be
+achieved by setting the instance property 'Critical' to the required value (e.g. `MyInstance.Critical := 100`).
+New instances default to `Critical, Off`. Though sometimes needed, ListViews or the whole Gui may become
+unresponsive under certain circumstances if `Critical` is set and the ListView has a g-label.
 
 
