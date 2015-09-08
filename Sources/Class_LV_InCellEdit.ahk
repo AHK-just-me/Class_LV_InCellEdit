@@ -3,7 +3,8 @@
 ; Function:       Support for in-cell ListView editing.
 ; Tested with:    AHK 1.1.20.03 (1.1.20+ required)
 ; Tested on:      Win 8.1 Pro (x64)
-; Change History: 1.2.00.00/2015-03-29/just me - New version based on AHK 1.1.20+ features.
+; Change History: 1.2.01.00/2015-09-08/just me - Added EditUserFunc option.
+;                 1.2.00.00/2015-03-29/just me - New version based on AHK 1.1.20+ features.
 ;                 1.1.04.00/2014-03-22/just me - Added method EditCell
 ;                 1.1.03.00/2012-05-05/just me - Added back option BlankSubItem for method Attach
 ;                 1.1.02.00/2012-05-01/just me - Added method SetColumns
@@ -63,8 +64,18 @@ Class LV_InCellEdit {
    ;                 BlankSubItem   -  Blank out subitem's text while editing
    ;                                   Values:  True / False
    ;                                   Default: False
+   ;                 EditUserFunc   -  The name of a user-defined funtion to be called from
+   ;                                   LVN_BEGINEDITLABEL and LVN_ENDEDITLABEL.
+   ;                                   The function must accept at least 6 Parameters:
+   ;                                      State -  The state of the edit operation: BEGIN / END
+   ;                                      HLV   -  The handle to the ListView.
+   ;                                      HED   -  The handle to the edit control.
+   ;                                      Row   -  The row number of the edited item.
+   ;                                      Col   -  The column number of the edited item.
+   ;                                      Text  -  The edited item's text before / after editing.
+   ;                                   To avoid the loss of messages the function should return as soon as possible.
    ; ===================================================================================================================
-   __New(HWND, HiddenCol1 := False, BlankSubItem := False) {
+   __New(HWND, HiddenCol1 := False, BlankSubItem := False, EditUserFunc := "") {
       If (This.Base.Base.__Class) ; do not instantiate instances
          Return False
       If This.Attached[HWND] ; HWND is already attached
@@ -74,6 +85,8 @@ Class LV_InCellEdit {
       VarSetCapacity(Class, 512, 0)
       DllCall("GetClassName", "Ptr", HWND, "Str", Class, "Int", 256)
       If (Class <> "SysListView32") ; HWND doesn't belong to a ListView
+         Return False
+      If (EditUserFunc <> "") && (Func(EditUserFunc).MaxParams < 6)
          Return False
       ; ----------------------------------------------------------------------------------------------------------------
       ; Set LVS_EX_DOUBLEBUFFER (0x010000) style to avoid drawing issues.
@@ -100,6 +113,8 @@ Class LV_InCellEdit {
       This.LR := 0
       This.LW := 0
       This.SW := 0
+      If (EditUserFunc <> "")
+         This.EditUserFunc := Func(EditUserFunc)
       This.OnMessage()
       This.Attached[HWND] := True
    }
@@ -287,6 +302,9 @@ Class LV_InCellEdit {
       , NumPut(1024 + 1, LVITEM, 16 + (A_PtrSize * 2), "Int") ; cchTextMax in LVITEM
       SendMessage, % (A_IsUnicode ? 0x1073 : 0x102D), % This.Item, % &LVITEM, , % "ahk_id " . H ; LVM_GETITEMTEXT
       This.ItemText := StrGet(&ItemText, ErrorLevel)
+      ; Call the user function, if any
+      If (This.EditUserFunc)
+         This.EditUserFunc.Call("BEGIN", This.HWND, This.HEDIT, This.Item + 1, This.Subitem + 1, This.ItemText)
       ControlSetText, , % This.ItemText, % "ahk_id " . This.HEDIT
       If (This.SubItem > 0) && (This.Blank) {
          Empty := ""
@@ -350,6 +368,9 @@ Class LV_InCellEdit {
          This.Item := This.SubItem := -1
       This.Cancelled := False
       This.Next := False
+      ; Call the user function, if any
+      If (This.EditUserFunc)
+         This.EditUserFunc.Call("END", This.HWND, This.HEDIT, This.Item + 1, This.Subitem + 1, ItemText)
       Return False
    }
    ; -------------------------------------------------------------------------------------------------------------------
