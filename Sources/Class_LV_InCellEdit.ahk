@@ -1,9 +1,10 @@
 ﻿; ======================================================================================================================
 ; Namespace:      LV_InCellEdit
 ; Function:       Support for in-cell ListView editing.
-; Tested with:    AHK 1.1.20.03 (1.1.20+ required)
-; Tested on:      Win 8.1 Pro (x64)
-; Change History: 1.2.01.00/2015-09-08/just me - Added EditUserFunc option.
+; Tested with:    AHK 1.1.22.09 (1.1.20+ required)
+; Tested on:      Win 10 Pro (x64)
+; Change History: 1.2.02.00/2015-12-14/just me - Bug fix and support for centered columns.
+;                 1.2.01.00/2015-09-08/just me - Added EditUserFunc option.
 ;                 1.2.00.00/2015-03-29/just me - New version based on AHK 1.1.20+ features.
 ;                 1.1.04.00/2014-03-22/just me - Added method EditCell
 ;                 1.1.03.00/2012-05-05/just me - Added back option BlankSubItem for method Attach
@@ -226,6 +227,7 @@ Class LV_InCellEdit {
    ; -------------------------------------------------------------------------------------------------------------------
    On_WM_COMMAND(W, L, M, H) {
       ; LVM_GETSTRINGWIDTHW = 0x1057, LVM_GETSTRINGWIDTHA = 0x1011
+      Critical, % This.Critical
       If (L = This.HEDIT) {
          N := (W >> 16)
          If (N = 0x0400) || (N = 0x0300) || (N = 0x0100) { ; EN_UPDATE | EN_CHANGE | EN_SETFOCUS
@@ -241,7 +243,7 @@ Class LV_InCellEdit {
                EW := This.MinW
             If (EX + EW) > This.LR
                EW := This.LR - EX
-            ControlMove, , %EX%, %EY%, %EW%, %EH%, % "ahk_id " . L
+            DllCall("SetWindowPos", "Ptr", L, "Ptr", 0, "Int", EX, "Int", EY, "Int", EW, "Int", EH, "UInt", 0x04)
             If (N = 0x0400) ; EN_UPDATE
                Return 0
          }
@@ -305,7 +307,7 @@ Class LV_InCellEdit {
       ; Call the user function, if any
       If (This.EditUserFunc)
          This.EditUserFunc.Call("BEGIN", This.HWND, This.HEDIT, This.Item + 1, This.Subitem + 1, This.ItemText)
-      ControlSetText, , % This.ItemText, % "ahk_id " . This.HEDIT
+      SendMessage, 0x000C, 0, % &ItemText, , % "ahk_id " . This.HEDIT
       If (This.SubItem > 0) && (This.Blank) {
          Empty := ""
          , NumPut(&Empty, LVITEM, 16 + A_PtrSize, "Ptr") ; pszText in LVITEM
@@ -315,8 +317,8 @@ Class LV_InCellEdit {
       VarSetCapacity(RECT, 16, 0)
       , NumPut(This.SubItem, RECT, 4, "Int")
       SendMessage, 0x1038, This.Item, &RECT, , % "ahk_id " . H ; LVM_GETSUBITEMRECT
-      This.EX := NumGet(RECT, 0, "Int") + This.LX + This.DX + Indent
-      , This.EY := NumGet(RECT, 4, "Int") + This.LY + This.DY
+      This.EX := NumGet(RECT, 0, "Int") + Indent
+      , This.EY := NumGet(RECT, 4, "Int")
       If (This.OSVersion < 6)
          This.EY -= 1 ; subtract 1 for WinXP
       If (This.SubItem = 0) {
@@ -325,10 +327,21 @@ Class LV_InCellEdit {
       }
       Else
          This.EW := NumGet(RECT, 8, "Int") - NumGet(RECT, 0, "Int")
-      This.EW -= Indent
-      , This.EH := NumGet(RECT, 12, "Int") - NumGet(RECT, 4, "Int")
+      This.EH := NumGet(RECT, 12, "Int") - NumGet(RECT, 4, "Int")
+      ; Check the column alignement
+      VarSetCapacity(LVCOL, 56, 0)
+      , NumPut(1, LVCOL, "UInt") ; LVCF_FMT
+      SendMessage, % (A_IsUnicode ? 0x105F : 0x1019), % This.SubItem, % &LVCOL, , % "ahk_id " . H ; LVM_GETCOLUMN
+      If (NumGet(LVCOL, 4, "UInt") & 0x0002) { ; LVCFMT_CENTER
+         SendMessage, % (A_IsUnicode ? 0x1057 : 0x1011), 0, % &ItemText, , % "ahk_id " . This.HWND ; LVM_GETSTRINGWIDTH
+         EW := ErrorLevel + This.DW
+         If (EW < This.MinW)
+            EW := This.MinW
+         If (EW < This.EW)
+            This.EX += ((This.EW - EW) // 2) - Indent
+      }
       ; Register WM_COMMAND handler
-      , This.CommandFunc := ObjBindMethod(This, "On_WM_COMMAND")
+      This.CommandFunc := ObjBindMethod(This, "On_WM_COMMAND")
       , OnMessage(0x0111, This.CommandFunc)
       ; Register hotkeys
       If !(This.Next)
